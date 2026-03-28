@@ -1,65 +1,329 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { TimerRing } from "@/components/timer/timer-ring";
+import { TimerControls } from "@/components/timer/timer-controls";
+import { TaskList } from "@/components/tasks/task-list";
+import { AmbientPlayer } from "@/components/ambient/ambient-player";
+import { Heatmap } from "@/components/stats/heatmap";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { SettingsModal } from "@/components/layout/settings-modal";
+import { DottedSurface } from "@/components/ui/dotted-surface";
+import { FocusView } from "@/components/focus/focus-view";
+import { useTimer } from "@/hooks/useTimer";
+import { useTasks } from "@/hooks/useTasks";
+import { useNotionTasks } from "@/hooks/useNotionTasks";
+import { useConfetti } from "@/hooks/useConfetti";
+import { MODE_LABELS } from "@/lib/types";
+
+type Tab = "timer" | "stats";
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+  const timer = useTimer();
+  const taskManager = useTasks();
+  const notion = useNotionTasks();
+  const { fireConfetti } = useConfetti();
+  const [tab, setTab] = useState<Tab>("timer");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const prevCountRef = useRef(0);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Auto-enter focus mode when timer starts
+  useEffect(() => {
+    if (timer.isRunning && !focusMode) {
+      setFocusMode(true);
+    }
+  }, [timer.isRunning, focusMode]);
+
+  // Exit focus mode on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === "Escape" && focusMode) {
+        setFocusMode(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [focusMode]);
+
+  // Update document title with timer
+  useEffect(() => {
+    if (!mounted) return;
+    const mins = Math.floor(timer.secondsLeft / 60);
+    const secs = timer.secondsLeft % 60;
+    const time = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    document.title = `${time} — ${MODE_LABELS[timer.mode]} | PomoFlow`;
+  }, [timer.secondsLeft, timer.mode, mounted]);
+
+  // On pomodoro complete: increment task + confetti
+  useEffect(() => {
+    if (timer.pomodoroCount > prevCountRef.current) {
+      if (taskManager.activeTaskId) {
+        taskManager.incrementPomodoro(taskManager.activeTaskId);
+      }
+      fireConfetti();
+    }
+    prevCountRef.current = timer.pomodoroCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timer.pomodoroCount]);
+
+  const handleImportNotionTask = (nt: { title: string }) => {
+    taskManager.addTask(nt.title, 1);
+  };
+
+  const handleExitFocus = useCallback(() => {
+    setFocusMode(false);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <motion.div
+          className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex min-h-dvh flex-col overflow-hidden">
+      {/* Three.js dotted surface background */}
+      <DottedSurface />
+
+      {/* Radial glow overlay */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-[5] bg-[radial-gradient(ellipse_at_center,var(--pomo-focus-glow),transparent_60%)] blur-[30px]"
+      />
+
+      {/* Header */}
+      <motion.header
+        className="relative z-10 flex items-center justify-between px-6 py-4"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-primary/8 flex items-center justify-center border border-border/20">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-primary">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <span className="text-lg font-semibold tracking-tight" style={{ fontFamily: "var(--font-heading), serif" }}>
+            PomoFlow
+          </span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        <div className="flex items-center gap-2">
+          {/* Tab switcher */}
+          <div className="flex rounded-xl bg-secondary/30 p-0.5 backdrop-blur-md border border-border/20">
+            {(["timer", "stats"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className="relative cursor-pointer rounded-lg px-5 py-2 text-sm font-medium transition-colors"
+              >
+                {tab === t && (
+                  <motion.div
+                    layoutId="headerTab"
+                    className="absolute inset-0 rounded-lg bg-background shadow-sm border border-border/20"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className={`relative z-10 capitalize text-base ${tab === t ? "text-foreground" : "text-muted-foreground"}`}>
+                  {t}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setSettingsOpen(true)}
+            className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-xl border border-border/20 text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-secondary/30 backdrop-blur-sm"
+            aria-label="Open settings"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </motion.button>
+          <ThemeToggle />
         </div>
+      </motion.header>
+
+      {/* Main content */}
+      <main className="relative z-10 flex flex-1 flex-col items-center px-4 pb-8">
+        <AnimatePresence mode="wait">
+          {tab === "timer" ? (
+            <motion.div
+              key="timer"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-1 w-full max-w-6xl pt-4 sm:pt-8 gap-8"
+            >
+              {/* Left sidebar: Tasks */}
+              <div className="hidden lg:flex flex-col gap-6 w-80 shrink-0">
+                <TaskList
+                  tasks={taskManager.tasks}
+                  activeTaskId={taskManager.activeTaskId}
+                  onSelectTask={taskManager.setActiveTaskId}
+                  onAddTask={taskManager.addTask}
+                  onToggleDone={taskManager.toggleDone}
+                  onRemoveTask={taskManager.removeTask}
+                  onClearDone={taskManager.clearDone}
+                  notionTasks={notion.notionTasks}
+                  isNotionConnected={notion.isConnected}
+                  isNotionLoading={notion.isLoading}
+                  onFetchNotion={notion.fetchTasks}
+                  onImportNotionTask={handleImportNotionTask}
+                />
+              </div>
+
+              {/* Center: Timer */}
+              <div className="flex flex-1 flex-col items-center gap-8">
+                {/* Active task indicator */}
+                <AnimatePresence>
+                  {taskManager.activeTask && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      className="flex items-center gap-2 rounded-full bg-secondary/30 px-5 py-2 backdrop-blur-md border border-border/20"
+                    >
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                      <span className="text-base text-muted-foreground truncate max-w-52">
+                        {taskManager.activeTask.title}
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Pomodoro counter */}
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: timer.settings.longBreakInterval }).map((_, i) => (
+                    <motion.span
+                      key={i}
+                      animate={{
+                        scale: i < (timer.pomodoroCount % timer.settings.longBreakInterval) ? 1.2 : 1,
+                        backgroundColor: i < (timer.pomodoroCount % timer.settings.longBreakInterval)
+                          ? "var(--primary)"
+                          : "var(--border)",
+                      }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className="h-2.5 w-2.5 rounded-full"
+                    />
+                  ))}
+                  <span className="ml-2 text-xs text-muted-foreground/40 tabular-nums tracking-wider">
+                    #{timer.pomodoroCount}
+                  </span>
+                </div>
+
+                {/* Timer */}
+                <TimerRing
+                  progress={timer.progress}
+                  mode={timer.mode}
+                  secondsLeft={timer.secondsLeft}
+                  isRunning={timer.isRunning}
+                />
+
+                {/* Controls */}
+                <TimerControls
+                  mode={timer.mode}
+                  isRunning={timer.isRunning}
+                  onStart={timer.start}
+                  onPause={timer.pause}
+                  onReset={timer.reset}
+                  onSwitchMode={timer.switchMode}
+                />
+
+                {/* Mobile only: Tasks + Ambient stacked below */}
+                <div className="lg:hidden w-full max-w-md flex flex-col gap-6">
+                  <div className="w-full h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+                  <TaskList
+                    tasks={taskManager.tasks}
+                    activeTaskId={taskManager.activeTaskId}
+                    onSelectTask={taskManager.setActiveTaskId}
+                    onAddTask={taskManager.addTask}
+                    onToggleDone={taskManager.toggleDone}
+                    onRemoveTask={taskManager.removeTask}
+                    onClearDone={taskManager.clearDone}
+                    notionTasks={notion.notionTasks}
+                    isNotionConnected={notion.isConnected}
+                    isNotionLoading={notion.isLoading}
+                    onFetchNotion={notion.fetchTasks}
+                    onImportNotionTask={handleImportNotionTask}
+                  />
+                  <div className="w-full h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+                  <AmbientPlayer />
+                </div>
+              </div>
+
+              {/* Right sidebar: Ambient */}
+              <div className="hidden lg:flex flex-col gap-6 w-72 shrink-0">
+                <AmbientPlayer />
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="stats"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-2xl pt-4 sm:pt-8"
+            >
+              <Heatmap />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 py-4 text-center">
+        <span className="text-xs text-muted-foreground/20 tracking-widest uppercase" style={{ fontFamily: "var(--font-heading), serif" }}>
+          PomoFlow
+        </span>
+      </footer>
+
+      {/* Focus View Overlay */}
+      <AnimatePresence>
+        {focusMode && (
+          <FocusView
+            secondsLeft={timer.secondsLeft}
+            totalSeconds={timer.totalSeconds}
+            progress={timer.progress}
+            mode={timer.mode}
+            isRunning={timer.isRunning}
+            activeTask={taskManager.activeTask}
+            pomodoroCount={timer.pomodoroCount}
+            longBreakInterval={timer.settings.longBreakInterval}
+            onPause={timer.pause}
+            onStart={timer.start}
+            onReset={timer.reset}
+            onExit={handleExitFocus}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        settings={timer.settings}
+        onUpdate={timer.updateSettings}
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 }
