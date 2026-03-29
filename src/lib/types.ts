@@ -16,6 +16,7 @@ export interface Task {
   completedPomodoros: number;
   done: boolean;
   createdAt: string;
+  notionId?: string; // Notion page ID for sync back
 }
 
 export interface PomodoroSession {

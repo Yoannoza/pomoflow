@@ -18,7 +18,7 @@ export function useTasks() {
   }, []);
 
   const addTask = useCallback(
-    (title: string, estimatedPomodoros: number = 1) => {
+    (title: string, estimatedPomodoros: number = 1, notionId?: string) => {
       const task: Task = {
         id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
         title,
@@ -26,6 +26,7 @@ export function useTasks() {
         completedPomodoros: 0,
         done: false,
         createdAt: new Date().toISOString(),
+        ...(notionId && { notionId }),
       };
       setTasks((prev) => {
         const updated = [...prev, task];
@@ -55,6 +56,18 @@ export function useTasks() {
           t.id === id ? { ...t, done: !t.done } : t
         );
         saveTasks(updated);
+        // Sync to Notion if task has notionId
+        const task = updated.find((t) => t.id === id);
+        if (task?.notionId) {
+          fetch("/api/notion/tasks", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              taskId: task.notionId,
+              status: task.done ? "Fait" : "En cours",
+            }),
+          }).catch(() => {});
+        }
         return updated;
       });
     },
@@ -67,13 +80,19 @@ export function useTasks() {
         const updated = prev.map((t) => {
           if (t.id !== id) return t;
           const newCompleted = t.completedPomodoros + 1;
-          return {
-            ...t,
-            completedPomodoros: newCompleted,
-            done: newCompleted >= t.estimatedPomodoros ? true : t.done,
-          };
+          const nowDone = newCompleted >= t.estimatedPomodoros ? true : t.done;
+          return { ...t, completedPomodoros: newCompleted, done: nowDone };
         });
         saveTasks(updated);
+        // Auto-sync to Notion if task just completed
+        const task = updated.find((t) => t.id === id);
+        if (task?.done && task.notionId) {
+          fetch("/api/notion/tasks", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ taskId: task.notionId, status: "Fait" }),
+          }).catch(() => {});
+        }
         return updated;
       });
     },
@@ -92,6 +111,7 @@ export function useTasks() {
 
   return {
     tasks,
+    setTasks,
     activeTask,
     activeTaskId,
     setActiveTaskId,

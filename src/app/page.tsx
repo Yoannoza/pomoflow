@@ -15,11 +15,66 @@ import { useTimer } from "@/hooks/useTimer";
 import { useTasks } from "@/hooks/useTasks";
 import { useNotionTasks } from "@/hooks/useNotionTasks";
 import { useConfetti } from "@/hooks/useConfetti";
+import { useSync } from "@/hooks/useSync";
+import { useAuth } from "@/hooks/useAuth";
 import { MODE_LABELS } from "@/lib/types";
+
+function LoginScreen({ onLogin, error }: { onLogin: (pw: string) => Promise<boolean>; error: string | null }) {
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await onLogin(password);
+    setLoading(false);
+  };
+
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-background">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-sm p-8"
+      >
+        <div className="flex flex-col items-center gap-4 mb-8">
+          <div className="h-12 w-12 rounded-2xl bg-primary/8 flex items-center justify-center border border-border/20">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-primary">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-semibold" style={{ fontFamily: "var(--font-heading), serif" }}>
+            PomoFlow
+          </h1>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            autoFocus
+            className="w-full rounded-xl border border-border/50 bg-secondary/30 px-4 py-3 text-sm outline-none focus:border-primary/50 transition-colors backdrop-blur-sm"
+          />
+          {error && <p className="text-sm text-destructive text-center">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="cursor-pointer w-full rounded-xl bg-foreground py-3 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? "..." : "Enter"}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
 
 type Tab = "timer" | "stats";
 
 export default function Home() {
+  const auth = useAuth();
   const timer = useTimer();
   const taskManager = useTasks();
   const notion = useNotionTasks();
@@ -28,7 +83,28 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [, setStatsKey] = useState(0); // force re-render of stats
   const prevCountRef = useRef(0);
+
+  // Supabase realtime sync
+  const handleSyncTasks = useCallback((tasks: import("@/lib/types").Task[]) => {
+    taskManager.setTasks(tasks);
+  }, [taskManager]);
+
+  const handleSyncSessions = useCallback(() => {
+    // Sessions are read from localStorage by heatmap, just trigger re-render
+    setStatsKey((k) => k + 1);
+  }, []);
+
+  const handleSyncSettings = useCallback((settings: import("@/lib/types").TimerSettings) => {
+    timer.updateSettings(settings);
+  }, [timer]);
+
+  useSync({
+    onTasksUpdate: handleSyncTasks,
+    onSessionsUpdate: handleSyncSessions,
+    onSettingsUpdate: handleSyncSettings,
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -78,8 +154,8 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timer.pomodoroCount]);
 
-  const handleImportNotionTask = (nt: { title: string }) => {
-    taskManager.addTask(nt.title, 1);
+  const handleImportNotionTask = (nt: { id: string; title: string }) => {
+    taskManager.addTask(nt.title, 1, nt.id);
   };
 
   const handleExitFocus = useCallback(() => {
@@ -87,7 +163,7 @@ export default function Home() {
     setFocusMode(false);
   }, []);
 
-  if (!mounted) {
+  if (!mounted || auth.isAuthenticated === null) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <motion.div
@@ -97,6 +173,10 @@ export default function Home() {
         />
       </div>
     );
+  }
+
+  if (!auth.isAuthenticated) {
+    return <LoginScreen onLogin={auth.login} error={auth.error} />;
   }
 
   return (

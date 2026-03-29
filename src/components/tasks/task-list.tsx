@@ -116,13 +116,27 @@ export function TaskList({
             className="overflow-hidden mb-3"
           >
             <div className="rounded-xl border border-border/30 bg-secondary/20 p-3 space-y-2 backdrop-blur-sm">
+              {/* Refresh button */}
+              {isNotionConnected && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onFetchNotion?.(); }}
+                  className="cursor-pointer w-full flex items-center justify-center gap-2 rounded-lg border border-border/20 bg-card/30 p-2 text-xs text-muted-foreground/60 hover:text-foreground hover:bg-card/60 transition-all"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={isNotionLoading ? "animate-spin" : ""}>
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                  Refresh Notion tasks
+                </button>
+              )}
               {isNotionLoading ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground/50">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                   Loading...
                 </div>
               ) : notionTasks.length > 0 ? (
-                notionTasks.slice(0, 10).map((nt) => (
+                notionTasks.slice(0, 15).map((nt) => (
                   <motion.button
                     key={nt.id}
                     whileTap={{ scale: 0.98 }}
@@ -137,9 +151,26 @@ export function TaskList({
                     }`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{nt.title}</p>
-                      <p className="text-xs text-muted-foreground/50 mt-0.5">
-                        {[nt.status, nt.type, nt.context].filter(Boolean).join(" · ")}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {nt.status && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/50 text-muted-foreground/60">{nt.status}</span>
+                        )}
+                        {nt.priority && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/50 text-muted-foreground/60">{nt.priority}</span>
+                        )}
+                        {nt.type && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/50 text-muted-foreground/60">{nt.type}</span>
+                        )}
+                        {nt.dueDate && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/50 text-muted-foreground/60">{nt.dueDate}</span>
+                        )}
+                        {nt.context && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/50 text-muted-foreground/60">{nt.context}</span>
+                        )}
+                        {nt.energy && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/50 text-muted-foreground/60">{nt.energy}</span>
+                        )}
+                      </div>
                     </div>
                     <span className="shrink-0 text-xs text-primary/60 font-medium">+ Add</span>
                   </motion.button>
@@ -173,19 +204,24 @@ export function TaskList({
               }`}
             >
               {/* Checkbox */}
-              <motion.button
-                whileTap={{ scale: 0.85 }}
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   onToggleDone(task.id);
                 }}
-                className={`cursor-pointer flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                className={`cursor-pointer flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-90 ${
                   activeTaskId === task.id
                     ? "border-primary/40 hover:border-primary hover:bg-primary/10"
                     : "border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5"
                 }`}
                 aria-label={`Mark "${task.title}" as done`}
-              />
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-0 group-hover:opacity-30">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
 
               {/* Title & progress */}
               <div className="flex-1 min-w-0">
@@ -211,11 +247,13 @@ export function TaskList({
 
               {/* Delete button */}
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   onRemoveTask(task.id);
                 }}
-                className="cursor-pointer opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all"
+                className="cursor-pointer sm:opacity-0 sm:group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all"
                 aria-label={`Delete "${task.title}"`}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
