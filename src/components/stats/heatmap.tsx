@@ -34,17 +34,41 @@ export function Heatmap() {
     setTotalFocus(data.reduce((s, d) => s + d.focusMinutes, 0));
   }, []);
 
-  const weeks: DayStats[][] = [];
-  const last364 = stats.slice(-364);
-  for (let i = 0; i < last364.length; i += 7) {
-    weeks.push(last364.slice(i, i + 7));
+  // Build properly aligned weeks (each week starts on Monday)
+  const weeks: (DayStats | null)[][] = [];
+  if (stats.length > 0) {
+    // Find the day of week for the first date (0=Sun, 1=Mon, ..., 6=Sat)
+    // We want Monday=0, so remap: Mon=0, Tue=1, ..., Sun=6
+    const firstDate = new Date(stats[0].date);
+    const jsDay = firstDate.getDay(); // 0=Sun
+    const mondayOffset = jsDay === 0 ? 6 : jsDay - 1; // Mon=0, Tue=1, ..., Sun=6
+
+    // First week: pad with nulls before the first date
+    let currentWeek: (DayStats | null)[] = [];
+    for (let i = 0; i < mondayOffset; i++) {
+      currentWeek.push(null);
+    }
+
+    for (const day of stats) {
+      currentWeek.push(day);
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+    // Push remaining partial week
+    if (currentWeek.length > 0) {
+      weeks.push(currentWeek);
+    }
   }
 
   const monthLabels: { label: string; weekIndex: number }[] = [];
   let lastMonth = -1;
   weeks.forEach((week, wi) => {
-    if (week[0]) {
-      const month = new Date(week[0].date).getMonth();
+    // Find the first non-null day in the week
+    const firstDay = week.find((d) => d !== null);
+    if (firstDay) {
+      const month = new Date(firstDay.date).getMonth();
       if (month !== lastMonth) {
         monthLabels.push({ label: MONTHS[month], weekIndex: wi });
         lastMonth = month;
@@ -128,20 +152,24 @@ export function Heatmap() {
             <div className="flex gap-[3px]">
               {weeks.map((week, wi) => (
                 <div key={wi} className="flex flex-col gap-[3px]">
-                  {week.map((day) => (
-                    <div
-                      key={day.date}
-                      className="h-[11px] w-[11px] rounded-[3px] transition-all duration-150 hover:ring-1 hover:ring-foreground/10 cursor-pointer"
-                      style={{
-                        backgroundColor: getColor(day.focusMinutes),
-                        opacity: getOpacity(day.focusMinutes),
-                      }}
-                      onMouseEnter={() => setHoveredDay(day)}
-                      onMouseLeave={() => setHoveredDay(null)}
-                      role="gridcell"
-                      aria-label={`${day.date}: ${day.focusMinutes} minutes, ${day.sessions} sessions`}
-                    />
-                  ))}
+                  {week.map((day, di) =>
+                    day ? (
+                      <div
+                        key={day.date}
+                        className="h-[11px] w-[11px] rounded-[3px] transition-all duration-150 hover:ring-1 hover:ring-foreground/10 cursor-pointer"
+                        style={{
+                          backgroundColor: getColor(day.focusMinutes),
+                          opacity: getOpacity(day.focusMinutes),
+                        }}
+                        onMouseEnter={() => setHoveredDay(day)}
+                        onMouseLeave={() => setHoveredDay(null)}
+                        role="gridcell"
+                        aria-label={`${day.date}: ${day.focusMinutes} minutes, ${day.sessions} sessions`}
+                      />
+                    ) : (
+                      <div key={`empty-${di}`} className="h-[11px] w-[11px]" />
+                    )
+                  )}
                 </div>
               ))}
             </div>

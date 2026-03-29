@@ -15,6 +15,7 @@ export function useTimer() {
   const settingsRef = useRef(DEFAULT_SETTINGS);
   const modeRef = useRef<TimerMode>("focus");
   const pomodoroCountRef = useRef(0);
+  const autoStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const s = getSettings();
@@ -29,12 +30,19 @@ export function useTimer() {
   useEffect(() => { pomodoroCountRef.current = pomodoroCount; }, [pomodoroCount]);
 
   const totalSeconds = settings[mode] * 60;
-  const progress = 1 - secondsLeft / totalSeconds;
+  const progress = totalSeconds > 0 ? 1 - secondsLeft / totalSeconds : 0;
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+  }, []);
+
+  const clearAutoStart = useCallback(() => {
+    if (autoStartTimeoutRef.current) {
+      clearTimeout(autoStartTimeoutRef.current);
+      autoStartTimeoutRef.current = null;
     }
   }, []);
 
@@ -62,6 +70,8 @@ export function useTimer() {
         gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
         osc2.start(ctx.currentTime);
         osc2.stop(ctx.currentTime + 0.8);
+        // Close AudioContext after sounds finish to prevent resource leak
+        setTimeout(() => ctx.close().catch(() => {}), 1000);
       }, 300);
     } catch {
       // Audio not available
@@ -71,6 +81,7 @@ export function useTimer() {
   const startTimerWithSeconds = useCallback(
     (secs: number) => {
       clearTimer();
+      clearAutoStart();
       setIsRunning(true);
       setSecondsLeft(secs);
       targetEndRef.current = Date.now() + secs * 1000;
@@ -79,13 +90,12 @@ export function useTimer() {
         const remaining = Math.round((targetEndRef.current - Date.now()) / 1000);
         if (remaining <= 0) {
           setSecondsLeft(0);
-          // Will be handled by the effect below
         } else {
           setSecondsLeft(remaining);
         }
       }, 200);
     },
-    [clearTimer]
+    [clearTimer, clearAutoStart]
   );
 
   // Handle timer completion via effect to avoid stale closures
@@ -121,7 +131,7 @@ export function useTimer() {
       setSecondsLeft(nextSecs);
 
       if (currentSettings.autoStartBreaks) {
-        setTimeout(() => startTimerWithSeconds(nextSecs), 600);
+        autoStartTimeoutRef.current = setTimeout(() => startTimerWithSeconds(nextSecs), 600);
       }
     } else {
       setMode("focus");
@@ -130,7 +140,7 @@ export function useTimer() {
       setSecondsLeft(nextSecs);
 
       if (currentSettings.autoStartPomodoros) {
-        setTimeout(() => startTimerWithSeconds(nextSecs), 600);
+        autoStartTimeoutRef.current = setTimeout(() => startTimerWithSeconds(nextSecs), 600);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,19 +149,20 @@ export function useTimer() {
   const switchMode = useCallback(
     (newMode: TimerMode) => {
       clearTimer();
+      clearAutoStart();
       setIsRunning(false);
       setMode(newMode);
       modeRef.current = newMode;
       setSecondsLeft(settingsRef.current[newMode] * 60);
     },
-    [clearTimer]
+    [clearTimer, clearAutoStart]
   );
 
   const start = useCallback(() => {
     // Read current secondsLeft at call time
     setSecondsLeft((current) => {
       clearTimer();
-      setIsRunning(true);
+      clearAutoStart();
       targetEndRef.current = Date.now() + current * 1000;
 
       intervalRef.current = setInterval(() => {
@@ -165,18 +176,21 @@ export function useTimer() {
 
       return current;
     });
-  }, [clearTimer]);
+    setIsRunning(true);
+  }, [clearTimer, clearAutoStart]);
 
   const pause = useCallback(() => {
     clearTimer();
+    clearAutoStart();
     setIsRunning(false);
-  }, [clearTimer]);
+  }, [clearTimer, clearAutoStart]);
 
   const reset = useCallback(() => {
     clearTimer();
+    clearAutoStart();
     setIsRunning(false);
     setSecondsLeft(settingsRef.current[modeRef.current] * 60);
-  }, [clearTimer]);
+  }, [clearTimer, clearAutoStart]);
 
   const updateSettings = useCallback(
     (newSettings: TimerSettings) => {
@@ -191,8 +205,11 @@ export function useTimer() {
 
   // Cleanup
   useEffect(() => {
-    return () => clearTimer();
-  }, [clearTimer]);
+    return () => {
+      clearTimer();
+      clearAutoStart();
+    };
+  }, [clearTimer, clearAutoStart]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -200,16 +217,16 @@ export function useTimer() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code === "Space") {
         e.preventDefault();
-        // Toggle based on current state
-        setIsRunning((running) => {
-          if (running) {
-            clearTimer();
-            return false;
-          } else {
-            start();
-            return true; // start() will set this too, but we need to return something
-          }
-        });
+        // Use refs to avoid stale closure issues
+        if (intervalRef.current) {
+          // Timer is running, pause it
+          clearTimer();
+          clearAutoStart();
+          setIsRunning(false);
+        } else {
+          // Timer is paused, start it
+          start();
+        }
       }
       if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) {
         reset();
@@ -217,7 +234,7 @@ export function useTimer() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [start, reset, clearTimer]);
+  }, [start, reset, clearTimer, clearAutoStart]);
 
   return {
     mode,

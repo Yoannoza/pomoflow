@@ -34,10 +34,15 @@ export default function Home() {
     setMounted(true);
   }, []);
 
-  // Auto-enter focus mode when timer starts
+  // Auto-enter focus mode when timer starts (only on fresh start, not re-entry)
+  const userExitedRef = useRef(false);
   useEffect(() => {
-    if (timer.isRunning && !focusMode) {
+    if (timer.isRunning && !focusMode && !userExitedRef.current) {
       setFocusMode(true);
+    }
+    // Reset the flag when the timer stops
+    if (!timer.isRunning) {
+      userExitedRef.current = false;
     }
   }, [timer.isRunning, focusMode]);
 
@@ -78,6 +83,7 @@ export default function Home() {
   };
 
   const handleExitFocus = useCallback(() => {
+    userExitedRef.current = true;
     setFocusMode(false);
   }, []);
 
@@ -302,7 +308,6 @@ export default function Home() {
         {focusMode && (
           <FocusView
             secondsLeft={timer.secondsLeft}
-            totalSeconds={timer.totalSeconds}
             progress={timer.progress}
             mode={timer.mode}
             isRunning={timer.isRunning}

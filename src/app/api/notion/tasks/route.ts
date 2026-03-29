@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
-const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID || "7cef0b3a-245d-4612-8fd0-9fc4d66b4e98";
+const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 async function queryNotionDatabase() {
-  if (!NOTION_API_KEY) {
+  if (!NOTION_API_KEY || !NOTION_DATABASE_ID) {
     return [];
   }
 
@@ -80,11 +80,8 @@ function getDate(prop: Record<string, unknown> | undefined): string | null {
 }
 
 export async function GET() {
-  if (!NOTION_API_KEY) {
-    return NextResponse.json(
-      { tasks: [], error: "NOTION_API_KEY not configured" },
-      { status: 200 }
-    );
+  if (!NOTION_API_KEY || !NOTION_DATABASE_ID) {
+    return NextResponse.json({ tasks: [] }, { status: 200 });
   }
   const tasks = await queryNotionDatabase();
   return NextResponse.json({ tasks });
@@ -95,7 +92,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Not configured" }, { status: 400 });
   }
 
-  const { taskId, status } = await request.json();
+  let taskId: string, status: string;
+  try {
+    const body = await request.json();
+    taskId = body.taskId;
+    status = body.status;
+    if (!taskId || !status) {
+      return NextResponse.json({ error: "Missing taskId or status" }, { status: 400 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   const res = await fetch(`https://api.notion.com/v1/pages/${taskId}`, {
     method: "PATCH",

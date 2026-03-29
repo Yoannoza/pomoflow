@@ -104,6 +104,18 @@ export function NeuralBackground({
     }
 
     let particles: Particle[] = [];
+    let trailColor = `rgba(10, 26, 21, ${trailOpacity})`;
+
+    // Compute background RGB once for trail overlay
+    const computeBgColor = (): string => {
+      const tempDiv = document.createElement("div");
+      tempDiv.style.color = "var(--background)";
+      document.body.appendChild(tempDiv);
+      const rgb = getComputedStyle(tempDiv).color;
+      document.body.removeChild(tempDiv);
+      const match = rgb.match(/(\d+),\s*(\d+),\s*(\d+)/);
+      return match ? `${match[1]}, ${match[2]}, ${match[3]}` : "10, 26, 21";
+    };
 
     const init = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -113,8 +125,11 @@ export function NeuralBackground({
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
 
-      // Fill with solid background immediately so nothing shows through
-      ctx.fillStyle = "rgb(10, 26, 21)";
+      const bgRgb = computeBgColor();
+      trailColor = `rgba(${bgRgb}, ${trailOpacity})`;
+
+      // Fill with solid background
+      ctx.fillStyle = `rgb(${bgRgb})`;
       ctx.fillRect(0, 0, width, height);
 
       particles = [];
@@ -125,8 +140,7 @@ export function NeuralBackground({
 
     const animate = () => {
       // Trail effect - semi-transparent overlay creates the trailing look
-      // Use background color for trail overlay
-      ctx.fillStyle = `rgba(10, 26, 21, ${trailOpacity})`; // matches --background dark
+      ctx.fillStyle = trailColor;
       ctx.fillRect(0, 0, width, height);
 
       for (const p of particles) {

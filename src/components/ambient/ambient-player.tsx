@@ -23,6 +23,29 @@ const SOUNDS: AmbientSound[] = [
     src: "/sounds/rain.mp3",
   },
   {
+    id: "ocean",
+    label: "Ocean",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+        <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+        <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      </svg>
+    ),
+    src: "/sounds/ocean.mp3",
+  },
+  {
+    id: "thunder",
+    label: "Storm",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.973" />
+        <path d="M13 12l-3 5h4l-3 5" />
+      </svg>
+    ),
+    src: "/sounds/thunder.mp3",
+  },
+  {
     id: "fire",
     label: "Fire",
     icon: (
@@ -31,6 +54,51 @@ const SOUNDS: AmbientSound[] = [
       </svg>
     ),
     src: "/sounds/fire.mp3",
+  },
+  {
+    id: "forest",
+    label: "Forest",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M12 2L7 9h3l-4 7h4l-5 8h14l-5-8h4l-4-7h3L12 2z" />
+      </svg>
+    ),
+    src: "/sounds/forest.mp3",
+  },
+  {
+    id: "birds",
+    label: "Birds",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M16 7h.01" />
+        <path d="M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.28-2.3L2 20" />
+        <path d="m20 7 2 .5-2 .5" />
+      </svg>
+    ),
+    src: "/sounds/birds.mp3",
+  },
+  {
+    id: "stream",
+    label: "Stream",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M2 6c2 0 3.5 2 6 2s4-2 6-2 3.5 2 6 2" />
+        <path d="M2 12c2 0 3.5 2 6 2s4-2 6-2 3.5 2 6 2" />
+        <path d="M2 18c2 0 3.5 2 6 2s4-2 6-2 3.5 2 6 2" />
+      </svg>
+    ),
+    src: "/sounds/stream.mp3",
+  },
+  {
+    id: "night",
+    label: "Night",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+        <path d="M19 3v4" /><path d="M21 5h-4" />
+      </svg>
+    ),
+    src: "/sounds/night.mp3",
   },
   {
     id: "wind",
@@ -43,16 +111,6 @@ const SOUNDS: AmbientSound[] = [
       </svg>
     ),
     src: "/sounds/wind.mp3",
-  },
-  {
-    id: "forest",
-    label: "Forest",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <path d="M12 2L7 9h3l-4 7h4l-5 8h14l-5-8h4l-4-7h3L12 2z" />
-      </svg>
-    ),
-    src: "/sounds/forest.mp3",
   },
 ];
 
@@ -81,7 +139,7 @@ export function AmbientPlayer() {
       const audio = new Audio(sound.src);
       audio.loop = true;
       audio.volume = volume;
-      audio.play();
+      audio.play().catch(() => {});
       audioRef.current = audio;
       setActiveSound(sound.id);
     },
@@ -114,7 +172,7 @@ export function AmbientPlayer() {
         Ambient
       </h2>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {SOUNDS.map((sound) => {
           const isActive = activeSound === sound.id;
           return (

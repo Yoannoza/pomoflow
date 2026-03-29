@@ -64,11 +64,15 @@ export function useTasks() {
   const incrementPomodoro = useCallback(
     (id: string) => {
       setTasks((prev) => {
-        const updated = prev.map((t) =>
-          t.id === id
-            ? { ...t, completedPomodoros: t.completedPomodoros + 1 }
-            : t
-        );
+        const updated = prev.map((t) => {
+          if (t.id !== id) return t;
+          const newCompleted = t.completedPomodoros + 1;
+          return {
+            ...t,
+            completedPomodoros: newCompleted,
+            done: newCompleted >= t.estimatedPomodoros ? true : t.done,
+          };
+        });
         saveTasks(updated);
         return updated;
       });

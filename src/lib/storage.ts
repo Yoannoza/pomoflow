@@ -44,7 +44,7 @@ export function addSession(session: PomodoroSession) {
 
 // Settings
 export function getSettings(): TimerSettings {
-  return safeGet(KEYS.settings, DEFAULT_SETTINGS);
+  return { ...DEFAULT_SETTINGS, ...safeGet(KEYS.settings, DEFAULT_SETTINGS) };
 }
 
 export function saveSettings(settings: TimerSettings) {
@@ -89,16 +89,14 @@ export function getDayStats(days: number = 365): DayStats[] {
 export function getStreak(): number {
   const stats = getDayStats(365);
   let streak = 0;
-  // Start from yesterday (today might not be done yet)
-  const today = new Date().toISOString().split("T")[0];
-  const todayStats = stats.find((s) => s.date === today);
-  if (todayStats && todayStats.sessions > 0) streak = 1;
-
-  for (let i = stats.length - 2; i >= 0; i--) {
-    if (stats[i].date === today) continue;
+  // stats is oldest → newest, iterate from the end (most recent)
+  for (let i = stats.length - 1; i >= 0; i--) {
     if (stats[i].sessions > 0) {
       streak++;
-    } else if (streak > 0) {
+    } else {
+      // Allow today to have 0 sessions (still in progress), but break on any older gap
+      const isToday = stats[i].date === new Date().toISOString().split("T")[0];
+      if (isToday) continue;
       break;
     }
   }

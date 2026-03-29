@@ -97,11 +97,11 @@ export function TimerRing({ progress, mode, secondsLeft, isRunning }: TimerRingP
           }}
         />
 
-        {/* Glowing dot at progress tip */}
+        {/* Glowing dot at progress tip — no PI/2 offset since SVG has -rotate-90 */}
         {progress > 0.01 && progress < 0.99 && (
           <circle
-            cx={center + radius * Math.cos(2 * Math.PI * progress - Math.PI / 2)}
-            cy={center + radius * Math.sin(2 * Math.PI * progress - Math.PI / 2)}
+            cx={center + radius * Math.cos(2 * Math.PI * progress)}
+            cy={center + radius * Math.sin(2 * Math.PI * progress)}
             r={isRunning ? 4 : 3}
             fill={stroke}
             opacity={0.9}
