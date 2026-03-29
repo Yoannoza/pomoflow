@@ -59,29 +59,6 @@ const MINI_SOUNDS: AmbientSoundMini[] = [
   },
 ];
 
-// Gentle breathing ring around the timer
-function BreathingRing({ size, color }: { size: number; color: string }) {
-  return (
-    <motion.div
-      className="absolute rounded-full border"
-      style={{
-        width: size,
-        height: size,
-        borderColor: color,
-      }}
-      animate={{
-        scale: [1, 1.08, 1],
-        opacity: [0.1, 0.25, 0.1],
-      }}
-      transition={{
-        duration: 4,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
-    />
-  );
-}
-
 interface FocusViewProps {
   secondsLeft: number;
   totalSeconds: number;
@@ -328,27 +305,6 @@ export function FocusView({
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
         >
-          {/* Breathing decorative rings */}
-          <BreathingRing size={size + 60} color={particle} />
-          <motion.div
-            className="absolute rounded-full border"
-            style={{
-              width: size + 100,
-              height: size + 100,
-              borderColor: particle,
-            }}
-            animate={{
-              scale: [1, 1.05, 1],
-              opacity: [0.05, 0.15, 0.05],
-            }}
-            transition={{
-              duration: 6,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: 1.5,
-            }}
-          />
-
           <svg width={size} height={size} className="relative z-10 -rotate-90">
             {/* Outer decorative ring */}
             <circle
@@ -388,18 +344,14 @@ export function FocusView({
               }}
             />
             {/* Glowing dot at tip */}
-            {progress > 0 && progress < 1 && (
-              <motion.circle
+            {progress > 0.01 && progress < 0.99 && (
+              <circle
                 cx={center + radius * Math.cos(2 * Math.PI * progress - Math.PI / 2)}
                 cy={center + radius * Math.sin(2 * Math.PI * progress - Math.PI / 2)}
                 r={5}
                 fill={stroke}
-                animate={{
-                  r: [4, 8, 4],
-                  opacity: [0.6, 1, 0.6],
-                }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                style={{ filter: `drop-shadow(0 0 16px ${glow})` }}
+                opacity={0.9}
+                style={{ filter: `drop-shadow(0 0 12px ${glow})` }}
               />
             )}
           </svg>

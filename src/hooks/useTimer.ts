@@ -11,13 +11,22 @@ export function useTimer() {
   const [isRunning, setIsRunning] = useState(false);
   const [pomodoroCount, setPomodoroCount] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number>(0);
+  const targetEndRef = useRef<number>(0);
+  const settingsRef = useRef(DEFAULT_SETTINGS);
+  const modeRef = useRef<TimerMode>("focus");
+  const pomodoroCountRef = useRef(0);
 
   useEffect(() => {
     const s = getSettings();
     setSettings(s);
+    settingsRef.current = s;
     setSecondsLeft(s.focus * 60);
   }, []);
+
+  // Keep refs in sync
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { pomodoroCountRef.current = pomodoroCount; }, [pomodoroCount]);
 
   const totalSeconds = settings[mode] * 60;
   const progress = 1 - secondsLeft / totalSeconds;
@@ -42,7 +51,6 @@ export function useTimer() {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.8);
-      // Second beep
       setTimeout(() => {
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
@@ -60,69 +68,104 @@ export function useTimer() {
     }
   }, []);
 
+  const startTimerWithSeconds = useCallback(
+    (secs: number) => {
+      clearTimer();
+      setIsRunning(true);
+      setSecondsLeft(secs);
+      targetEndRef.current = Date.now() + secs * 1000;
+
+      intervalRef.current = setInterval(() => {
+        const remaining = Math.round((targetEndRef.current - Date.now()) / 1000);
+        if (remaining <= 0) {
+          setSecondsLeft(0);
+          // Will be handled by the effect below
+        } else {
+          setSecondsLeft(remaining);
+        }
+      }, 200);
+    },
+    [clearTimer]
+  );
+
+  // Handle timer completion via effect to avoid stale closures
+  useEffect(() => {
+    if (secondsLeft !== 0 || !isRunning) return;
+
+    clearTimer();
+    setIsRunning(false);
+    playAlarm();
+
+    const currentMode = modeRef.current;
+    const currentSettings = settingsRef.current;
+    const currentCount = pomodoroCountRef.current;
+
+    const now = new Date();
+    addSession({
+      date: now.toISOString().split("T")[0],
+      mode: currentMode,
+      duration: currentSettings[currentMode] * 60,
+      completedAt: now.toISOString(),
+    });
+
+    if (currentMode === "focus") {
+      const newCount = currentCount + 1;
+      setPomodoroCount(newCount);
+      pomodoroCountRef.current = newCount;
+
+      const nextMode: TimerMode = newCount % currentSettings.longBreakInterval === 0 ? "long" : "short";
+      const nextSecs = currentSettings[nextMode] * 60;
+
+      setMode(nextMode);
+      modeRef.current = nextMode;
+      setSecondsLeft(nextSecs);
+
+      if (currentSettings.autoStartBreaks) {
+        setTimeout(() => startTimerWithSeconds(nextSecs), 600);
+      }
+    } else {
+      setMode("focus");
+      modeRef.current = "focus";
+      const nextSecs = currentSettings.focus * 60;
+      setSecondsLeft(nextSecs);
+
+      if (currentSettings.autoStartPomodoros) {
+        setTimeout(() => startTimerWithSeconds(nextSecs), 600);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, isRunning]);
+
   const switchMode = useCallback(
     (newMode: TimerMode) => {
       clearTimer();
       setIsRunning(false);
       setMode(newMode);
-      setSecondsLeft(settings[newMode] * 60);
+      modeRef.current = newMode;
+      setSecondsLeft(settingsRef.current[newMode] * 60);
     },
-    [clearTimer, settings]
+    [clearTimer]
   );
 
-  const handleComplete = useCallback(() => {
-    clearTimer();
-    setIsRunning(false);
-    playAlarm();
-
-    const now = new Date();
-    addSession({
-      date: now.toISOString().split("T")[0],
-      mode,
-      duration: settings[mode] * 60,
-      completedAt: now.toISOString(),
-    });
-
-    if (mode === "focus") {
-      const newCount = pomodoroCount + 1;
-      setPomodoroCount(newCount);
-      if (newCount % settings.longBreakInterval === 0) {
-        switchMode("long");
-        if (settings.autoStartBreaks) {
-          setTimeout(() => start(), 500);
-        }
-      } else {
-        switchMode("short");
-        if (settings.autoStartBreaks) {
-          setTimeout(() => start(), 500);
-        }
-      }
-    } else {
-      switchMode("focus");
-      if (settings.autoStartPomodoros) {
-        setTimeout(() => start(), 500);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearTimer, mode, playAlarm, pomodoroCount, settings, switchMode]);
-
   const start = useCallback(() => {
-    clearTimer();
-    setIsRunning(true);
-    startTimeRef.current = Date.now();
-    const targetEnd = Date.now() + secondsLeft * 1000;
+    // Read current secondsLeft at call time
+    setSecondsLeft((current) => {
+      clearTimer();
+      setIsRunning(true);
+      targetEndRef.current = Date.now() + current * 1000;
 
-    intervalRef.current = setInterval(() => {
-      const remaining = Math.round((targetEnd - Date.now()) / 1000);
-      if (remaining <= 0) {
-        setSecondsLeft(0);
-        handleComplete();
-      } else {
-        setSecondsLeft(remaining);
-      }
-    }, 200);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearTimer, secondsLeft]);
+      intervalRef.current = setInterval(() => {
+        const remaining = Math.round((targetEndRef.current - Date.now()) / 1000);
+        if (remaining <= 0) {
+          setSecondsLeft(0);
+        } else {
+          setSecondsLeft(remaining);
+        }
+      }, 200);
+
+      return current;
+    });
+  }, [clearTimer]);
 
   const pause = useCallback(() => {
     clearTimer();
@@ -132,17 +175,18 @@ export function useTimer() {
   const reset = useCallback(() => {
     clearTimer();
     setIsRunning(false);
-    setSecondsLeft(settings[mode] * 60);
-  }, [clearTimer, mode, settings]);
+    setSecondsLeft(settingsRef.current[modeRef.current] * 60);
+  }, [clearTimer]);
 
   const updateSettings = useCallback(
     (newSettings: TimerSettings) => {
       setSettings(newSettings);
+      settingsRef.current = newSettings;
       if (!isRunning) {
-        setSecondsLeft(newSettings[mode] * 60);
+        setSecondsLeft(newSettings[modeRef.current] * 60);
       }
     },
-    [isRunning, mode]
+    [isRunning]
   );
 
   // Cleanup
@@ -156,7 +200,16 @@ export function useTimer() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code === "Space") {
         e.preventDefault();
-        isRunning ? pause() : start();
+        // Toggle based on current state
+        setIsRunning((running) => {
+          if (running) {
+            clearTimer();
+            return false;
+          } else {
+            start();
+            return true; // start() will set this too, but we need to return something
+          }
+        });
       }
       if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) {
         reset();
@@ -164,7 +217,7 @@ export function useTimer() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isRunning, pause, start, reset]);
+  }, [start, reset, clearTimer]);
 
   return {
     mode,

@@ -20,7 +20,7 @@ export function useTasks() {
   const addTask = useCallback(
     (title: string, estimatedPomodoros: number = 1) => {
       const task: Task = {
-        id: crypto.randomUUID(),
+        id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
         title,
         estimatedPomodoros,
         completedPomodoros: 0,

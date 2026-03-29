@@ -98,21 +98,13 @@ export function TimerRing({ progress, mode, secondsLeft, isRunning }: TimerRingP
         />
 
         {/* Glowing dot at progress tip */}
-        {progress > 0 && progress < 1 && (
-          <motion.circle
+        {progress > 0.01 && progress < 0.99 && (
+          <circle
             cx={center + radius * Math.cos(2 * Math.PI * progress - Math.PI / 2)}
             cy={center + radius * Math.sin(2 * Math.PI * progress - Math.PI / 2)}
             r={isRunning ? 4 : 3}
             fill={stroke}
-            animate={{
-              opacity: isRunning ? [0.8, 1, 0.8] : 1,
-              r: isRunning ? [3, 5, 3] : 3,
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
+            opacity={0.9}
             style={{
               filter: `drop-shadow(0 0 6px ${glow})`,
             }}
