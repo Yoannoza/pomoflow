@@ -31,9 +31,11 @@ export function getTasks(): Task[] {
   return safeGet(KEYS.tasks, []);
 }
 
-export function saveTasks(tasks: Task[]) {
+export function saveTasks(tasks: Task[], skipSync = false) {
   safeSet(KEYS.tasks, tasks);
-  syncTasksToSupabase(tasks);
+  if (!skipSync) {
+    syncTasksToSupabase(tasks);
+  }
 }
 
 async function syncTasksToSupabase(tasks: Task[]) {

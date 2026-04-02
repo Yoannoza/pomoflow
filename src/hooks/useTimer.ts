@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { TimerMode, TimerSettings, DEFAULT_SETTINGS } from "@/lib/types";
 import { addSession, getSettings } from "@/lib/storage";
+import { isTauri } from "@/lib/tauri";
 
 export function useTimer() {
   const [settings, setSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
@@ -87,7 +88,7 @@ export function useTimer() {
       targetEndRef.current = Date.now() + secs * 1000;
 
       intervalRef.current = setInterval(() => {
-        const remaining = Math.round((targetEndRef.current - Date.now()) / 1000);
+        const remaining = Math.ceil((targetEndRef.current - Date.now()) / 1000);
         if (remaining <= 0) {
           setSecondsLeft(0);
         } else {
@@ -105,6 +106,24 @@ export function useTimer() {
     clearTimer();
     setIsRunning(false);
     playAlarm();
+
+    // Send native notification in Tauri desktop app
+    if (isTauri()) {
+      import("@tauri-apps/plugin-notification").then(({ sendNotification, isPermissionGranted, requestPermission }) => {
+        isPermissionGranted().then(async (granted) => {
+          if (!granted) granted = (await requestPermission()) === "granted";
+          if (granted) {
+            const m = modeRef.current;
+            sendNotification({
+              title: "PomoFlow",
+              body: m === "focus"
+                ? "Focus session complete! Time for a break."
+                : "Break is over! Ready to focus?",
+            });
+          }
+        });
+      }).catch(() => {});
+    }
 
     const currentMode = modeRef.current;
     const currentSettings = settingsRef.current;
@@ -166,7 +185,7 @@ export function useTimer() {
       targetEndRef.current = Date.now() + current * 1000;
 
       intervalRef.current = setInterval(() => {
-        const remaining = Math.round((targetEndRef.current - Date.now()) / 1000);
+        const remaining = Math.ceil((targetEndRef.current - Date.now()) / 1000);
         if (remaining <= 0) {
           setSecondsLeft(0);
         } else {

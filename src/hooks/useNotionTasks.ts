@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { isTauri } from "@/lib/tauri";
+import { getNotionCredentials, fetchNotionTasksDirect } from "@/lib/notion-client";
 
 export interface NotionTask {
   id: string;
@@ -23,15 +25,30 @@ export function useNotionTasks() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/notion/tasks");
-      if (res.ok) {
-        const data = await res.json();
-        setNotionTasks(data.tasks || []);
+      if (isTauri()) {
+        // Desktop: call Notion API directly via Tauri HTTP plugin
+        const creds = getNotionCredentials();
+        if (!creds) {
+          setError("Notion credentials not configured");
+          setIsConnected(false);
+          setIsLoading(false);
+          return;
+        }
+        const tasks = await fetchNotionTasksDirect(creds);
+        setNotionTasks(tasks);
         setIsConnected(true);
       } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || "Failed to fetch tasks");
-        setIsConnected(false);
+        // Web: use API route
+        const res = await fetch("/api/notion/tasks");
+        if (res.ok) {
+          const data = await res.json();
+          setNotionTasks(data.tasks || []);
+          setIsConnected(true);
+        } else {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error || "Failed to fetch tasks");
+          setIsConnected(false);
+        }
       }
     } catch {
       setError("Cannot connect to Notion");
@@ -48,12 +65,19 @@ export function useNotionTasks() {
 
   const updateTaskStatus = useCallback(async (taskId: string, status: string) => {
     try {
-      await fetch("/api/notion/tasks", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, status }),
-      });
-      // Refresh tasks after update
+      if (isTauri()) {
+        const creds = getNotionCredentials();
+        if (creds) {
+          const { updateNotionTaskDirect } = await import("@/lib/notion-client");
+          await updateNotionTaskDirect(creds, taskId, status);
+        }
+      } else {
+        await fetch("/api/notion/tasks", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId, status }),
+        });
+      }
       fetchTasks();
     } catch {
       // silently fail

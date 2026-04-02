@@ -6,8 +6,7 @@ import {
   pullTasksFromSupabase,
   pullSessionsFromSupabase,
   pullSettingsFromSupabase,
-  saveTasks as saveTasksLocal,
-  getSettings,
+  saveTasks,
   getSessions,
 } from "@/lib/storage";
 import { Task, PomodoroSession, TimerSettings } from "@/lib/types";
@@ -21,6 +20,14 @@ interface UseSyncOptions {
 export function useSync({ onTasksUpdate, onSessionsUpdate, onSettingsUpdate }: UseSyncOptions) {
   const initializedRef = useRef(false);
 
+  // Use refs for callbacks so realtime subscription never re-subscribes
+  const onTasksRef = useRef(onTasksUpdate);
+  const onSessionsRef = useRef(onSessionsUpdate);
+  const onSettingsRef = useRef(onSettingsUpdate);
+  useEffect(() => { onTasksRef.current = onTasksUpdate; }, [onTasksUpdate]);
+  useEffect(() => { onSessionsRef.current = onSessionsUpdate; }, [onSessionsUpdate]);
+  useEffect(() => { onSettingsRef.current = onSettingsUpdate; }, [onSettingsUpdate]);
+
   // Pull all data from Supabase on mount
   const pullAll = useCallback(async () => {
     if (!supabase) return;
@@ -32,12 +39,11 @@ export function useSync({ onTasksUpdate, onSessionsUpdate, onSettingsUpdate }: U
     ]);
 
     if (remoteTasks && remoteTasks.length > 0) {
-      saveTasksLocal(remoteTasks);
-      onTasksUpdate(remoteTasks);
+      saveTasks(remoteTasks, true);
+      onTasksRef.current(remoteTasks);
     }
 
     if (remoteSessions && remoteSessions.length > 0) {
-      // Merge: keep local sessions that aren't in remote (by completedAt)
       const localSessions = getSessions();
       const remoteKeys = new Set(remoteSessions.map((s) => s.completedAt));
       const merged = [
@@ -45,23 +51,23 @@ export function useSync({ onTasksUpdate, onSessionsUpdate, onSettingsUpdate }: U
         ...localSessions.filter((s) => !remoteKeys.has(s.completedAt)),
       ];
       localStorage.setItem("pomoflow-sessions", JSON.stringify(merged));
-      onSessionsUpdate(merged);
+      onSessionsRef.current(merged);
     }
 
     if (remoteSettings) {
       localStorage.setItem("pomoflow-settings", JSON.stringify(remoteSettings));
-      onSettingsUpdate(remoteSettings);
+      onSettingsRef.current(remoteSettings);
     }
-  }, [onTasksUpdate, onSessionsUpdate, onSettingsUpdate]);
+  }, []);
 
-  // Initial pull
+  // Initial pull — once only
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
     pullAll();
   }, [pullAll]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions — subscribe once, never re-subscribe
   useEffect(() => {
     if (!supabase) return;
 
@@ -70,8 +76,8 @@ export function useSync({ onTasksUpdate, onSessionsUpdate, onSettingsUpdate }: U
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
         pullTasksFromSupabase().then((tasks) => {
           if (tasks) {
-            saveTasksLocal(tasks);
-            onTasksUpdate(tasks);
+            saveTasks(tasks, true);
+            onTasksRef.current(tasks);
           }
         });
       })
@@ -79,7 +85,7 @@ export function useSync({ onTasksUpdate, onSessionsUpdate, onSettingsUpdate }: U
         pullSessionsFromSupabase().then((sessions) => {
           if (sessions) {
             localStorage.setItem("pomoflow-sessions", JSON.stringify(sessions));
-            onSessionsUpdate(sessions);
+            onSessionsRef.current(sessions);
           }
         });
       })
@@ -87,7 +93,7 @@ export function useSync({ onTasksUpdate, onSessionsUpdate, onSettingsUpdate }: U
         pullSettingsFromSupabase().then((settings) => {
           if (settings) {
             localStorage.setItem("pomoflow-settings", JSON.stringify(settings));
-            onSettingsUpdate(settings);
+            onSettingsRef.current(settings);
           }
         });
       })
@@ -96,7 +102,7 @@ export function useSync({ onTasksUpdate, onSessionsUpdate, onSettingsUpdate }: U
     return () => {
       supabase?.removeChannel(channel);
     };
-  }, [onTasksUpdate, onSessionsUpdate, onSettingsUpdate]);
+  }, []); // empty deps — subscribe once
 
   return { pullAll, isConnected: !!supabase };
 }

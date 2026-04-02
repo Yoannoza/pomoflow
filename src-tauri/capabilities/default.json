@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "notification:default",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "notification:allow-notify",
+    "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.notion.com/**" },
+        { "url": "https://*.supabase.co/**" }
+      ]
+    }
+  ]
+}

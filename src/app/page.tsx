@@ -86,19 +86,23 @@ export default function Home() {
   const [, setStatsKey] = useState(0); // force re-render of stats
   const prevCountRef = useRef(0);
 
-  // Supabase realtime sync
+  // Supabase realtime sync — use refs to avoid re-subscribing on every render
+  const taskManagerRef = useRef(taskManager);
+  const timerRef = useRef(timer);
+  useEffect(() => { taskManagerRef.current = taskManager; }, [taskManager]);
+  useEffect(() => { timerRef.current = timer; }, [timer]);
+
   const handleSyncTasks = useCallback((tasks: import("@/lib/types").Task[]) => {
-    taskManager.setTasks(tasks);
-  }, [taskManager]);
+    taskManagerRef.current.setTasks(tasks);
+  }, []);
 
   const handleSyncSessions = useCallback(() => {
-    // Sessions are read from localStorage by heatmap, just trigger re-render
     setStatsKey((k) => k + 1);
   }, []);
 
   const handleSyncSettings = useCallback((settings: import("@/lib/types").TimerSettings) => {
-    timer.updateSettings(settings);
-  }, [timer]);
+    timerRef.current.updateSettings(settings);
+  }, []);
 
   useSync({
     onTasksUpdate: handleSyncTasks,

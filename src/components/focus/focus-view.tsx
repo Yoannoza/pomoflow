@@ -117,6 +117,10 @@ export function FocusView({
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - progress);
 
+  // Intro sound state
+  const introRef = useRef<HTMLAudioElement | null>(null);
+  const [introPlayed, setIntroPlayed] = useState(false);
+
   // Mini ambient player state
   const [activeSound, setActiveSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
@@ -150,6 +154,32 @@ export function FocusView({
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  // Play intro sound on mount
+  useEffect(() => {
+    if (introPlayed) return;
+    const intro = new Audio("/sounds/let_him_cook.mp3");
+    intro.volume = volume;
+    introRef.current = intro;
+    intro.play().catch(() => {});
+    intro.addEventListener("ended", () => {
+      introRef.current = null;
+      setIntroPlayed(true);
+    });
+    return () => {
+      if (introRef.current) {
+        introRef.current.pause();
+        introRef.current = null;
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync intro volume
+  useEffect(() => {
+    if (introRef.current) {
+      introRef.current.volume = volume;
     }
   }, [volume]);
 

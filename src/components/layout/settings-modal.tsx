@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { TimerSettings } from "@/lib/types";
 import { saveSettings } from "@/lib/storage";
+import { isTauri } from "@/lib/tauri";
+import { getNotionCredentials, saveNotionCredentials } from "@/lib/notion-client";
 
 interface SettingsModalProps {
   settings: TimerSettings;
@@ -13,12 +15,19 @@ interface SettingsModalProps {
 
 export function SettingsModal({ settings, onUpdate, open, onClose }: SettingsModalProps) {
   const [local, setLocal] = useState<TimerSettings>(settings);
+  const isDesktop = isTauri();
+  const existingCreds = isDesktop ? getNotionCredentials() : null;
+  const [notionApiKey, setNotionApiKey] = useState(existingCreds?.apiKey || "");
+  const [notionDbId, setNotionDbId] = useState(existingCreds?.databaseId || "");
 
   if (!open) return null;
 
   const handleSave = () => {
     saveSettings(local);
     onUpdate(local);
+    if (isDesktop && (notionApiKey || notionDbId)) {
+      saveNotionCredentials({ apiKey: notionApiKey, databaseId: notionDbId });
+    }
     onClose();
   };
 
@@ -118,6 +127,35 @@ export function SettingsModal({ settings, onUpdate, open, onClose }: SettingsMod
             </div>
           </label>
         </div>
+
+        {isDesktop && (
+          <div className="space-y-4 mt-4">
+            <div className="h-px bg-border/50" />
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Notion Integration</p>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">API Key</label>
+                <input
+                  type="password"
+                  value={notionApiKey}
+                  onChange={(e) => setNotionApiKey(e.target.value)}
+                  placeholder="ntn_..."
+                  className="w-full rounded-lg border border-border/50 bg-secondary/50 px-3 py-2 text-sm outline-none focus:border-primary/50 transition-colors"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Database ID</label>
+                <input
+                  type="text"
+                  value={notionDbId}
+                  onChange={(e) => setNotionDbId(e.target.value)}
+                  placeholder="abc123..."
+                  className="w-full rounded-lg border border-border/50 bg-secondary/50 px-3 py-2 text-sm outline-none focus:border-primary/50 transition-colors"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           onClick={handleSave}
